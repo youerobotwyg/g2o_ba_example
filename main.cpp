@@ -26,6 +26,7 @@
 
 
 using namespace std;
+using namespace cv;
 
 // 寻找两个图像中的对应点，像素坐标系
 // 输入：img1, img2 两张图像
@@ -60,14 +61,16 @@ int main( int argc, char** argv )
     }
     cout<<"找到了"<<pts1.size()<<"组对应特征点。"<<endl;
     // 构造g2o中的图
+
+    typedef g2o::BlockSolver< g2o::BlockSolverTraits<6,3> > Block;
     // 先构造求解器
     g2o::SparseOptimizer    optimizer;
     // 使用Cholmod中的线性方程求解器
-    g2o::BlockSolver_6_3::LinearSolverType* linearSolver = new  g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType> ();
+    Block::LinearSolverType* linearSolver = new  g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType> ();
     // 6*3 的参数
-    g2o::BlockSolver_6_3* block_solver = new g2o::BlockSolver_6_3( linearSolver );
+    Block* block_solver = new Block( std::unique_ptr<Block::LinearSolverType>(linearSolver ));
     // L-M 下降 
-    g2o::OptimizationAlgorithmLevenberg* algorithm = new g2o::OptimizationAlgorithmLevenberg( block_solver );
+    g2o::OptimizationAlgorithmLevenberg* algorithm = new g2o::OptimizationAlgorithmLevenberg( std::unique_ptr<Block>(block_solver) );
     
     optimizer.setAlgorithm( algorithm );
     optimizer.setVerbose( false );
@@ -179,11 +182,17 @@ int main( int argc, char** argv )
 
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2 )
 {
-    cv::ORB orb;
+    //cv::ORB orb;
     vector<cv::KeyPoint> kp1, kp2;
     cv::Mat desp1, desp2;
-    orb( img1, cv::Mat(), kp1, desp1 );
-    orb( img2, cv::Mat(), kp2, desp2 );
+    //orb( img1, cv::Mat(), kp1, desp1 );
+    //orb( img2, cv::Mat(), kp2, desp2 );
+    Ptr<FeatureDetector> detector = ORB::create();
+    Ptr<DescriptorExtractor> descriptor = ORB::create();
+    detector->detect ( img1,kp1 );
+    detector->detect ( img2,kp2 );
+    descriptor->compute ( img1, kp1, desp1 );
+    descriptor->compute ( img2, kp2, desp2 );
     cout<<"分别找到了"<<kp1.size()<<"和"<<kp2.size()<<"个特征点"<<endl;
     
     cv::Ptr<cv::DescriptorMatcher>  matcher = cv::DescriptorMatcher::create( "BruteForce-Hamming");
